@@ -19,15 +19,13 @@ Download.from(url, options)
 * Uses httpoison
 
 ## Installation
-
+Into mix.exs:
 ```elixir
 def deps do
   [{:download, "~> x.x.x"}]
 end
 ```
-
-Into `mix.exs`
-
+Only in elixir 1.2 an below:
 ``` elixir
 def application do
   [applications: [:download]]
