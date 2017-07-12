@@ -1,6 +1,7 @@
 # `download`
 
 [![hexdocs](https://img.shields.io/badge/hex-docs-brightgreen.svg)](https://hexdocs.pm/download/Download.html#from/2)
+![badge](https://img.shields.io/hexpm/v/download.svg)
 
 Simply downloads remote file and stores it in the filesystem.
 
