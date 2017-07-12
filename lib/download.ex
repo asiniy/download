@@ -42,10 +42,8 @@ defmodule Download do
         do: { :ok, path }
   end
 
-  @project_path System.cwd()
-
   defp get_default_download_path(file_name) do
-    @project_path <> "/" <> file_name
+    System.cwd() <> "/" <> file_name
   end
 
   defp create_file(path), do: File.open(path, [:write, :exclusive])
