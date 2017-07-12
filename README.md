@@ -10,6 +10,8 @@ Simply downloads remote file and stores it in the filesystem.
 Download.from(url, options)
 ```
 
+[Documentation](https://hexdocs.pm/download/Download.html#from/2)
+
 ## Features
 
 * Small RAM consumption
