@@ -2,7 +2,7 @@ defmodule Download.Mixfile do
   use Mix.Project
 
   @project_url "https://github.com/asiniy/download"
-  @version "0.0.3"
+  @version "0.0.4"
 
   def project do
     [
