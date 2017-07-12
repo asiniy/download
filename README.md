@@ -1,5 +1,6 @@
 # `download`
 
+[![Build Status](https://travis-ci.org/asiniy/download.svg?branch=master)](https://travis-ci.org/asiniy/download)
 [![hexdocs](https://img.shields.io/badge/hex-docs-brightgreen.svg)](https://hexdocs.pm/download/Download.html#from/2)
 ![badge](https://img.shields.io/hexpm/v/download.svg)
 
