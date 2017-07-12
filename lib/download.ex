@@ -79,6 +79,7 @@ defmodule Download do
 
   @wait_timeout 5000
 
+  @doc false
   def do_download(opts) do
     receive do
       response_chunk -> handle_async_response_chunk(response_chunk, opts)
