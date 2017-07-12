@@ -1,5 +1,7 @@
 # `download`
 
+[![hexdocs](https://img.shields.io/badge/hex-docs-brightgreen.svg)](https://hexdocs.pm/download/Download.html#from/2)
+
 Simply downloads remote file and stores it in the filesystem.
 
 ``` elixir
