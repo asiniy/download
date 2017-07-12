@@ -52,7 +52,8 @@ defmodule Download do
       file: file,
       max_file_size: max_file_size,
       controlling_pid: self(),
-      path: path
+      path: path,
+      downloaded_content_length: 0
     }
     { :ok, spawn_link(__MODULE__, :do_download, [opts]) }
   end
@@ -102,12 +103,21 @@ defmodule Download do
   end
 
   defp handle_async_response_chunk(%AsyncChunk{chunk: data}, opts) do
-    IO.binwrite(opts.file, data)
-    do_download(opts)
+    downloaded_content_length = opts.downloaded_content_length + byte_size(data)
+
+    if downloaded_content_length < opts.max_file_size do
+      IO.binwrite(opts.file, data)
+      opts_with_content_length_increased = Map.put(opts, :downloaded_content_length, downloaded_content_length)
+      do_download(opts_with_content_length_increased)
+    else
+      finish_download({ :error, :file_size_is_too_big }, opts)
+    end
   end
 
   defp handle_async_response_chunk(%AsyncEnd{}, opts), do: finish_download({ :ok }, opts)
 
+  # Uncomment one line below if you are prefer to test not "Content-Length" header response, but a real file size
+  # defp do_handle_content_length(_, opts), do: do_download(opts)
   defp do_handle_content_length({ "Content-Length", content_length }, opts) do
     if String.to_integer(content_length) > opts.max_file_size do
       finish_download({ :error, :file_size_is_too_big }, opts)
