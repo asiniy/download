@@ -77,6 +77,13 @@ defmodule DownloadTest do
       assert Download.from(test_url(size: 100), [path: path_to_store]) == { :error, :eexist }
     end
 
+    test "aborts if the download takes longer than the given timeout" do
+      path_to_store = random_tmp_path()
+
+      assert Download.from(test_url(size: 10, wait: 300), [timeout: 200, path: path_to_store]) == { :error, :timeout }
+      refute File.exists?(path_to_store)
+    end
+
     test "does not get interrupted by the flow of messages to the process mailbox" do
       path_to_store = random_tmp_path()
 

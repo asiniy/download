@@ -17,6 +17,10 @@ defmodule TestServer do
       do: put_resp_header(conn, "content-length", content_length),
       else: conn
 
+    wait_period = conn.query_params["wait"]
+    if wait_period,
+      do: wait_period |> parse_numeric() |> :timer.sleep()
+
     send_resp(conn, resp_status, body)
   end
 

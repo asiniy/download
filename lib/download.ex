@@ -5,15 +5,20 @@ defmodule Download do
 
   Returns:
 
-  * `{ :ok, stored_file_absolute_path }` if everything were ok.
+  * `{ :ok, stored_file_absolute_path }` if the download succeeds
   * `{ :error, :file_size_is_too_big }` if file size exceeds `max_file_size`
-  * `{ :error, :download_failure }` if host isn't reachable
-  * `{ :error, :eexist }` if file exists already
+  * `{ :error, :timeout }` if the download takes longer than the specified timeout
+  * `{ :error, status_code }` (where status_code is an integer)
+    if the host responds with a non-200 status
+  * `{ :error, posix }` (where posix is an atom; see the docs for `File`)
+    if a file operation fails; typical posix errors are
+    :eexist (file already exists) and :eacces (insufficient permissions).
 
   Options:
 
     * `max_file_size` - max available file size for downloading (in bytes). Default is `1024 * 1024 * 1000` (1GB)
     * `path` - absolute file path for the saved file. Default is `pwd <> requested file name`
+    * `timeout` - the amount of time to wait for the download to finish. Default is `10 * 60 * 1000` (10 minutes)
 
   ## Examples
 
@@ -29,7 +34,7 @@ defmodule Download do
   """
 
   @default_max_file_size 1024 * 1024 * 1000 # 1 GB
-  @default_timeout 2 * 60 * 1000 # 2 minutes
+  @default_timeout 10 * 60 * 1000 # 10 minutes
 
   def from(url, opts \\ []) do
     max_file_size = Keyword.get(opts, :max_file_size, @default_max_file_size)
@@ -40,7 +45,7 @@ defmodule Download do
           download_task <- Task.async(fn ->
             download(url, io_device, path, max_file_size)
           end),
-          :ok <- Task.await(download_task, timeout),
+          :ok <- wait_for_download(download_task, timeout, path),
         do: { :ok, path }
   end
 
@@ -69,6 +74,14 @@ defmodule Download do
         File.rm!(path)
         error
     end
+  end
+
+  defp wait_for_download(download_task, timeout, path) do
+    Task.await(download_task, timeout)
+  catch
+    :exit, { :timeout, { Task, :await, _ } } ->
+      File.rm!(path)
+      { :error, :timeout }
   end
 
   alias HTTPoison.{AsyncHeaders, AsyncStatus, AsyncChunk, AsyncEnd}
