@@ -60,7 +60,7 @@ defmodule DownloadTest do
     test "returns error for non-200 status codes" do
       path_to_store = random_tmp_path()
 
-      assert Download.from(test_url(size: 10, status: 404), [path: path_to_store]) == { :error, :unexpected_status_code, 404 }
+      assert Download.from(test_url(size: 10, status: 404), [path: path_to_store]) == { :error, 404 }
       refute File.exists?(path_to_store)
     end
 
@@ -75,6 +75,21 @@ defmodule DownloadTest do
       path_to_store = System.cwd() <> "/" <> "mix.exs"
 
       assert Download.from(test_url(size: 100), [path: path_to_store]) == { :error, :eexist }
+    end
+
+    test "does not get interrupted by the flow of messages to the process mailbox" do
+      path_to_store = random_tmp_path()
+
+      send self(), :note_to_self
+
+      assert Download.from(test_url(size: 100), [path: path_to_store]) == { :ok, path_to_store }
+      assert file_downloaded_correctly(path_to_store, 100)
+
+      receive do
+        :note_to_self -> :ok
+      after 2_000 ->
+        flunk "the message to self() has not been received."
+      end
     end
   end
 
