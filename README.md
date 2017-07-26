@@ -25,7 +25,7 @@ def deps do
   [{:download, "~> x.x.x"}]
 end
 ```
-Only in elixir 1.2 an below:
+Only in elixir 1.3 an below:
 ``` elixir
 def application do
   [applications: [:download]]
