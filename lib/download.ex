@@ -33,7 +33,8 @@ defmodule Download do
   def from(url, opts \\ []) do
     max_file_size = Keyword.get(opts, :max_file_size, @default_max_file_size)
     file_name = url |> String.split("/") |> List.last()
-    path = Keyword.get(opts, :path, get_default_download_path(file_name))
+    dir = Keyword.get(opts, :dir, get_default_dir())
+    path = Keyword.get(opts, :path, get_default_download_path(dir, file_name))
 
     with  { :ok, file } <- create_file(path),
           { :ok, response_parsing_pid } <- create_process(file, max_file_size, path),
@@ -42,11 +43,18 @@ defmodule Download do
         do: { :ok, path }
   end
 
-  defp get_default_download_path(file_name) do
-    System.cwd() <> "/" <> file_name
+  defp get_default_dir() do
+    System.cwd() <> "/downloads/"
   end
 
-  defp create_file(path), do: File.open(path, [:write, :exclusive])
+  defp get_default_download_path(dir, file_name) do
+    dir <> file_name
+  end
+
+  defp create_file(path) do
+    Path.dirname(path) |> File.mkdir
+    File.open(path, [:write, :exclusive])
+  end
   defp create_process(file, max_file_size, path) do
     opts = %{
       file: file,
