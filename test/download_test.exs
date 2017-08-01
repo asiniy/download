@@ -8,7 +8,7 @@ defmodule DownloadTest do
 
   describe "from" do
     test "successfully downloads file" do
-      resulting_download_path = @project_path <> "/" <> "test100k.db"
+      resulting_download_path = @project_path <> "/downloads/" <> "test100k.db"
 
       File.rm(resulting_download_path)
 
