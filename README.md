@@ -20,14 +20,14 @@ Download.from(url, options)
 
 ## Installation
 
+Into `mix.exs`
 ```elixir
 def deps do
   [{:download, "~> x.x.x"}]
 end
 ```
 
-Into `mix.exs`
-
+Only in elixir 1.3 and below:
 ``` elixir
 def application do
   [applications: [:download]]
