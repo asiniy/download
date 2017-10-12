@@ -15,6 +15,8 @@ defmodule Download do
     * `max_file_size` - max available file size for downloading (in bytes). Default is `1024 * 1024 * 1000` (1GB)
     * `path` - absolute file path for the saved file. Default is `pwd <> requested file name`
 
+  Any other options are passed on to HTTPoison.
+
   ## Examples
 
       iex> Download.from("http://speedtest.ftp.otenet.gr/files/test100k.db")
@@ -37,7 +39,7 @@ defmodule Download do
 
     with  { :ok, file } <- create_file(path),
           { :ok, response_parsing_pid } <- create_process(file, max_file_size, path),
-          { :ok, _pid } <- start_download(url, response_parsing_pid, path),
+          { :ok, _pid } <- start_download(url, response_parsing_pid, path, opts),
           { :ok } <- wait_for_download(),
         do: { :ok, path }
   end
@@ -58,8 +60,8 @@ defmodule Download do
     { :ok, spawn_link(__MODULE__, :do_download, [opts]) }
   end
 
-  defp start_download(url, response_parsing_pid, path) do
-    request = HTTPoison.get url, %{}, stream_to: response_parsing_pid
+  defp start_download(url, response_parsing_pid, path, opts) do
+    request = HTTPoison.get url, %{}, [stream_to: response_parsing_pid] ++ opts
 
     case request do
       { :error, _reason } ->
