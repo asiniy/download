@@ -5,15 +5,20 @@ defmodule Download do
 
   Returns:
 
-  * `{ :ok, stored_file_absolute_path }` if everything were ok.
+  * `{ :ok, stored_file_absolute_path }` if the download succeeds
   * `{ :error, :file_size_is_too_big }` if file size exceeds `max_file_size`
-  * `{ :error, :download_failure }` if host isn't reachable
-  * `{ :error, :eexist }` if file exists already
+  * `{ :error, :timeout }` if the download takes longer than the specified timeout
+  * `{ :error, status_code }` (where status_code is an integer)
+    if the host responds with a non-200 status
+  * `{ :error, posix }` (where posix is an atom; see the docs for `File`)
+    if a file operation fails; typical posix errors are
+    :eexist (file already exists) and :eacces (insufficient permissions).
 
   Options:
 
     * `max_file_size` - max available file size for downloading (in bytes). Default is `1024 * 1024 * 1000` (1GB)
     * `path` - absolute file path for the saved file. Default is `pwd <> requested file name`
+    * `timeout` - the amount of time to wait for the download to finish. Default is `10 * 60 * 1000` (10 minutes)
 
   ## Examples
 
@@ -29,110 +34,99 @@ defmodule Download do
   """
 
   @default_max_file_size 1024 * 1024 * 1000 # 1 GB
+  @default_timeout 10 * 60 * 1000 # 10 minutes
 
   def from(url, opts \\ []) do
     max_file_size = Keyword.get(opts, :max_file_size, @default_max_file_size)
-    file_name = url |> String.split("/") |> List.last()
-    path = Keyword.get(opts, :path, get_default_download_path(file_name))
+    timeout = Keyword.get(opts, :timeout, @default_timeout)
+    path = Keyword.get(opts, :path, default_download_path(url))
 
-    with  { :ok, file } <- create_file(path),
-          { :ok, response_parsing_pid } <- create_process(file, max_file_size, path),
-          { :ok, _pid } <- start_download(url, response_parsing_pid, path),
-          { :ok } <- wait_for_download(),
+    with  { :ok, io_device } <- open_file_for_writing(path),
+          download_task <- Task.async(fn ->
+            download(url, io_device, path, max_file_size)
+          end),
+          :ok <- wait_for_download(download_task, timeout, path),
         do: { :ok, path }
   end
 
-  defp get_default_download_path(file_name) do
-    System.cwd() <> "/" <> file_name
+  defp default_download_path(url) do
+    filename = url |> String.split("/") |> List.last()
+    Path.join(System.cwd(), filename)
   end
 
-  defp create_file(path), do: File.open(path, [:write, :exclusive])
-  defp create_process(file, max_file_size, path) do
-    opts = %{
-      file: file,
-      max_file_size: max_file_size,
-      controlling_pid: self(),
-      path: path,
-      downloaded_content_length: 0
-    }
-    { :ok, spawn_link(__MODULE__, :do_download, [opts]) }
-  end
+  defp open_file_for_writing(path),
+    do: File.open(path, [:write, :exclusive])
 
-  defp start_download(url, response_parsing_pid, path) do
-    request = HTTPoison.get url, %{}, stream_to: response_parsing_pid
+  defp download(url, io_device, path, max_file_size) do
+    request = HTTPoison.get(url, %{}, stream_to: self())
 
     case request do
-      { :error, _reason } ->
-        File.rm!(path)
-      _ -> nil
-    end
+      {:ok, _} ->
+        opts = %{
+          io_device: io_device,
+          max_file_size: max_file_size,
+          path: path,
+          downloaded_size: 0
+        }
 
-    request
+        do_download(opts)
+      {:error, _} = error ->
+        File.rm!(path)
+        error
+    end
   end
 
-  defp wait_for_download() do
-    receive do
-      reason -> reason
-    end
+  defp wait_for_download(download_task, timeout, path) do
+    Task.await(download_task, timeout)
+  catch
+    :exit, { :timeout, { Task, :await, _ } } ->
+      File.rm!(path)
+      { :error, :timeout }
   end
 
   alias HTTPoison.{AsyncHeaders, AsyncStatus, AsyncChunk, AsyncEnd}
 
-  @wait_timeout 5000
-
-  @doc false
   def do_download(opts) do
     receive do
-      response_chunk -> handle_async_response_chunk(response_chunk, opts)
-    after
-      @wait_timeout -> { :error, :timeout_failure }
+      %AsyncStatus{code: 200} ->
+        do_download(opts)
+      %AsyncStatus{code: error_code} ->
+        finish_download({ :error, error_code }, opts)
+      %AsyncHeaders{headers: headers} ->
+        check_content_length(headers, opts)
+      %AsyncChunk{chunk: data} ->
+        write_chunk(data, opts)
+      %AsyncEnd{} ->
+        finish_download(:ok, opts)
     end
   end
 
-  defp handle_async_response_chunk(%AsyncStatus{code: 200}, opts), do: do_download(opts)
-  defp handle_async_response_chunk(%AsyncStatus{code: status_code}, opts) do
-    finish_download({ :error, :unexpected_status_code, status_code }, opts)
-  end
-
-  defp handle_async_response_chunk(%AsyncHeaders{headers: headers}, opts) do
-    content_length_header = Enum.find(headers, fn({ header_name, _value }) ->
-      header_name == "Content-Length"
-    end)
-
-    do_handle_content_length(content_length_header, opts)
-  end
-
-  defp handle_async_response_chunk(%AsyncChunk{chunk: data}, opts) do
-    downloaded_content_length = opts.downloaded_content_length + byte_size(data)
-
-    if downloaded_content_length < opts.max_file_size do
-      IO.binwrite(opts.file, data)
-      opts_with_content_length_increased = Map.put(opts, :downloaded_content_length, downloaded_content_length)
-      do_download(opts_with_content_length_increased)
-    else
-      finish_download({ :error, :file_size_is_too_big }, opts)
-    end
-  end
-
-  defp handle_async_response_chunk(%AsyncEnd{}, opts), do: finish_download({ :ok }, opts)
-
-  # Uncomment one line below if you are prefer to test not "Content-Length" header response, but a real file size
-  # defp do_handle_content_length(_, opts), do: do_download(opts)
-  defp do_handle_content_length({ "Content-Length", content_length }, opts) do
+  defp check_content_length(%{"Content-Length" => content_length}, opts) do
     if String.to_integer(content_length) > opts.max_file_size do
       finish_download({ :error, :file_size_is_too_big }, opts)
     else
       do_download(opts)
     end
   end
-  defp do_handle_content_length(nil, opts), do: do_download(opts)
+  defp check_content_length(_headers, opts), do: do_download(opts)
 
-  defp finish_download(reason, opts) do
-    File.close(opts.file)
-    if (elem(reason, 0) == :error) do
-      File.rm!(opts.path)
+  defp write_chunk(data, opts) do
+    downloaded_size = opts.downloaded_size + byte_size(data)
+
+    if downloaded_size < opts.max_file_size do
+      IO.binwrite(opts.io_device, data)
+      opts |> Map.put(:downloaded_size, downloaded_size) |> do_download()
+    else
+      finish_download({ :error, :file_size_is_too_big }, opts)
     end
-    send(opts.controlling_pid, reason)
   end
 
+  defp finish_download(:ok, %{io_device: io_device}) do
+    File.close(io_device)
+  end
+  defp finish_download(error, %{io_device: io_device, path: path}) do
+    File.close(io_device)
+    File.rm!(path)
+    error
+  end
 end
