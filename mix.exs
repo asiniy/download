@@ -35,8 +35,9 @@ defmodule Download.Mixfile do
   defp deps do
     [
       {:httpoison, ">= 0.9.0"},
-      {:exvcr, "~> 0.8", only: :test},
       {:ex_doc, ">= 0.0.0", only: :dev},
+      {:cowboy, "~> 1.1", only: :test},
+      {:plug, "~> 1.3", only: :test}
     ]
   end
 
