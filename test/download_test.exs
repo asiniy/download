@@ -58,6 +58,20 @@ defmodule DownloadTest do
 
       assert Download.from(@remote_file_url, [path: path_to_store]) == { :error, :eexist }
     end
+
+    test "returns error if server has a bad SSL cert" do
+      path_to_store = random_tmp_path()
+
+      assert Download.from("https://self-signed.badssl.com", [path: path_to_store]) == { :error, %HTTPoison.Error{id: nil, reason: {:tls_alert, 'bad certificate'}} }
+      refute File.exists?(path_to_store)
+    end
+
+    test "passes HTTPoison options" do
+      path_to_store = random_tmp_path()
+
+      assert Download.from("https://self-signed.badssl.com", [path: path_to_store, hackney: [:insecure]]) == { :ok, path_to_store }
+      assert File.exists?(path_to_store)
+    end
   end
 
   defp file_downloaded_correctly(path) do

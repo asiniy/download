@@ -20,16 +20,28 @@ Download.from(url, options)
 
 ## Installation
 
+Into `mix.exs`
 ```elixir
 def deps do
   [{:download, "~> x.x.x"}]
 end
 ```
 
-Into `mix.exs`
-
+Only in elixir 1.3 and below:
 ``` elixir
 def application do
   [applications: [:download]]
 end
 ```
+
+## About [Brutalist](https://brutalist.press)
+
+<a href="https://brutalist.press">
+  <img src="https://github.com/asiniy/download/blob/master/brutalist_logo.png"
+  width="400"
+  height="106"
+  alt="Brutalist">
+</a>
+<br /><br />
+
+`download` package is maintained and funded by folks from [Brutalist](https://brutalist.press) - media platform for writing and sharing news and stories with strong focus on traditional values, think-tank level analytics and political research.
