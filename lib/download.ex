@@ -14,6 +14,7 @@ defmodule Download do
 
     * `max_file_size` - max available file size for downloading (in bytes). Default is `1024 * 1024 * 1000` (1GB)
     * `path` - absolute file path for the saved file. Default is `pwd <> requested file name`
+    * `follow_redirect` - follow HTTP redirects before downloading
 
   ## Examples
 
@@ -34,10 +35,11 @@ defmodule Download do
     max_file_size = Keyword.get(opts, :max_file_size, @default_max_file_size)
     file_name = url |> String.split("/") |> List.last()
     path = Keyword.get(opts, :path, get_default_download_path(file_name))
+    follow_redirect = Keyword.get(opts, :follow_redirect, false)
 
     with  { :ok, file } <- create_file(path),
-          { :ok, response_parsing_pid } <- create_process(file, max_file_size, path),
-          { :ok, _pid } <- start_download(url, response_parsing_pid, path),
+          { :ok, response_parsing_pid } <- create_process(file, max_file_size, path, follow_redirect),
+          { :ok, _pid } <- start_download(url, response_parsing_pid, path, follow_redirect),
           { :ok } <- wait_for_download(),
         do: { :ok, path }
   end
@@ -47,19 +49,20 @@ defmodule Download do
   end
 
   defp create_file(path), do: File.open(path, [:write, :exclusive])
-  defp create_process(file, max_file_size, path) do
+  defp create_process(file, max_file_size, path, follow_redirect) do
     opts = %{
       file: file,
       max_file_size: max_file_size,
       controlling_pid: self(),
       path: path,
-      downloaded_content_length: 0
+      downloaded_content_length: 0,
+      follow_redirect: follow_redirect
     }
     { :ok, spawn_link(__MODULE__, :do_download, [opts]) }
   end
 
-  defp start_download(url, response_parsing_pid, path) do
-    request = HTTPoison.get url, %{}, stream_to: response_parsing_pid
+  defp start_download(url, response_parsing_pid, path, follow_redirect) do
+    request = HTTPoison.get url, %{}, stream_to: response_parsing_pid, follow_redirect: follow_redirect
 
     case request do
       { :error, _reason } ->
@@ -76,7 +79,7 @@ defmodule Download do
     end
   end
 
-  alias HTTPoison.{AsyncHeaders, AsyncStatus, AsyncChunk, AsyncEnd}
+  alias HTTPoison.{AsyncHeaders, AsyncStatus, AsyncChunk, AsyncRedirect, AsyncEnd}
 
   @wait_timeout 5000
 
@@ -90,6 +93,11 @@ defmodule Download do
   end
 
   defp handle_async_response_chunk(%AsyncStatus{code: 200}, opts), do: do_download(opts)
+  defp handle_async_response_chunk(%AsyncStatus{code: status_code},
+                                   opts=%{follow_redirect: follow_redirect})
+      when status_code < 400 and status_code >= 300 and follow_redirect do
+    do_download(opts)
+  end
   defp handle_async_response_chunk(%AsyncStatus{code: status_code}, opts) do
     finish_download({ :error, :unexpected_status_code, status_code }, opts)
   end
@@ -112,6 +120,11 @@ defmodule Download do
     else
       finish_download({ :error, :file_size_is_too_big }, opts)
     end
+  end
+
+  defp handle_async_response_chunk(%AsyncRedirect{to: new_url}, opts) do
+    start_download(new_url, self(), opts.path, opts.follow_redirect)
+    do_download(opts)
   end
 
   defp handle_async_response_chunk(%AsyncEnd{}, opts), do: finish_download({ :ok }, opts)

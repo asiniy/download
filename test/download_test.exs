@@ -58,6 +58,11 @@ defmodule DownloadTest do
 
       assert Download.from(@remote_file_url, [path: path_to_store]) == { :error, :eexist }
     end
+
+    test "follows single redirect" do
+      path = random_tmp_path()
+      assert Download.from("http://fast.com", follow_redirect: true, path: path) == { :ok, path }
+    end
   end
 
   defp file_downloaded_correctly(path) do
