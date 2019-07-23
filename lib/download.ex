@@ -43,7 +43,7 @@ defmodule Download do
   end
 
   defp get_default_download_path(file_name) do
-    System.cwd() <> "/" <> file_name
+    "#{File.cwd!()}/#{file_name}"
   end
 
   defp create_file(path), do: File.open(path, [:write, :exclusive])

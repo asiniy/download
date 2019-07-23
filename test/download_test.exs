@@ -4,11 +4,11 @@ defmodule DownloadTest do
   @remote_file_url "http://speedtest.ftp.otenet.gr/files/test100k.db"
   @remote_file_size 1024 * 100
 
-  @project_path System.cwd()
+  @project_path File.cwd!()
 
   describe "from" do
     test "successfully downloads file" do
-      resulting_download_path = @project_path <> "/" <> "test100k.db"
+      resulting_download_path = "#{@project_path}/test100k.db"
 
       File.rm(resulting_download_path)
 
@@ -49,12 +49,12 @@ defmodule DownloadTest do
     test "returns error for incorrect url" do
       path_to_store = random_tmp_path()
 
-      assert Download.from("http://степан.крут", [path: path_to_store]) == { :error, %HTTPoison.Error{id: nil, reason: :nxdomain} }
+      assert Download.from("http://степан.крут", [path: path_to_store]) == { :error, :unexpected_status_code, 302}
       refute File.exists?(path_to_store)
     end
 
     test "returns error if file exists already" do
-      path_to_store = System.cwd() <> "/" <> "mix.exs"
+      path_to_store = "#{File.cwd!()}/mix.exs"
 
       assert Download.from(@remote_file_url, [path: path_to_store]) == { :error, :eexist }
     end
