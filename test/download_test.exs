@@ -4,7 +4,7 @@ defmodule DownloadTest do
   @remote_file_url "http://speedtest.ftp.otenet.gr/files/test100k.db"
   @remote_file_size 1024 * 100
 
-  @project_path System.cwd()
+  @project_path File.cwd!()
 
   describe "from" do
     test "successfully downloads file" do
@@ -54,7 +54,7 @@ defmodule DownloadTest do
     end
 
     test "returns error if file exists already" do
-      path_to_store = System.cwd() <> "/" <> "mix.exs"
+      path_to_store = File.cwd!() <> "/" <> "mix.exs"
 
       assert Download.from(@remote_file_url, [path: path_to_store]) == { :error, :eexist }
     end
